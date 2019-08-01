@@ -86,7 +86,7 @@ function get_gpg(){
 # get_gpg {GPGKEYID|FINGERPRINT} [URL|FILE]
 
 # device specific settings
-HYPRIOT_DEVICE="Raspberry Pi 3 64bit"
+HYPRIOT_DEVICE="Raspberry Pi 4 64bit"
 
 # set up /etc/resolv.conf
 DEST=$(readlink -m /etc/resolv.conf)
