@@ -15,7 +15,7 @@ BUILD_RESULT_PATH="/workspace"
 BUILD_PATH="/build"
 
 ROOTFS_TAR=${ROOT_FS_ARTIFACT}
-ROOTFS_TAR_PATH="${BUILD_RESULT_PATH}/${ROOTFS_TAR}"
+ROOTFS_TAR_PATH="${BUILD_RESULT_PATH}/inputs/${ROOTFS_TAR}"
 
 # Show TRAVSI_TAG in travis builds
 echo TRAVIS_TAG="${TRAVIS_TAG}"
@@ -30,6 +30,7 @@ rm -rf ${BUILD_PATH}
 mkdir ${BUILD_PATH}
 
 # download our base root file system
+echo "ROOTFS_TAR_PATH: ${ROOTFS_TAR_PATH}"
 if [ ! -f "${ROOTFS_TAR_PATH}" ]; then
   if [ "$FETCH_MISSING_ARTIFACTS" == "true" ]; then
     wget -q -O "${ROOTFS_TAR_PATH}" "https://github.com/hypriot/os-rootfs/releases/download/${HYPRIOT_OS_VERSION}/${ROOTFS_TAR}"
@@ -48,11 +49,14 @@ fi
 tar xf "${ROOTFS_TAR_PATH}" -C "${BUILD_PATH}"
 
 # extract/add additional files
-FILENAME=/workspace/$BOOTLOADER_ARTIFACT
+FILENAME=/workspace/inputs/$BOOTLOADER_ARTIFACT
+echo "BOOTLOADER_PATH: $FILENAME"
 if [ ! -f "$FILENAME" ]; then
   if [ "$FETCH_MISSING_ARTIFACTS" == "true" ]; then
-    fetch --repo="https://github.com/DieterReuter/rpi-bootloader" --tag="v$BOOTLOADER_BUILD" --release-asset="rpi-bootloader.tar.gz.sha256" /workspace
-    fetch --repo="https://github.com/DieterReuter/rpi-bootloader" --tag="v$BOOTLOADER_BUILD" --release-asset="rpi-bootloader.tar.gz" /workspace
+    fetch --repo="https://github.com/sakaki-/bcm2711-kernel-bis" --tag="$BOOTLOADER_BUILD" \
+      --release-asset="bcm2711-kernel-bis-${BOOTLOADER_BUILD}.tar.xz" /workspace/inputs/
+    # fetch --repo="https://github.com/DieterReuter/rpi-bootloader" --tag="v$BOOTLOADER_BUILD" --release-asset="rpi-bootloader.tar.gz.sha256" /workspace
+    # fetch --repo="https://github.com/DieterReuter/rpi-bootloader" --tag="v$BOOTLOADER_BUILD" --release-asset="rpi-bootloader.tar.gz" /workspace
   else
     echo "Missing artifact ${BOOTLOADER_ARTIFACT}"
     exit 255
@@ -60,7 +64,8 @@ if [ ! -f "$FILENAME" ]; then
 fi
 tar -xf "$FILENAME" -C "${BUILD_PATH}"
 
-FILENAME=/workspace/$KERNEL_ARTIFACT
+FILENAME=/workspace/inputs/$KERNEL_ARTIFACT
+echo "KERNEL_PATH: $FILENAME"
 if [ ! -f "$FILENAME" ]; then
   if [ "$FETCH_MISSING_ARTIFACTS" == "true" ]; then
     fetch --repo="https://github.com/DieterReuter/rpi64-kernel" --tag="v$KERNEL_BUILD" --release-asset="$KERNEL_VERSION-hypriotos-v8.tar.gz.sha256" /workspace
@@ -113,9 +118,9 @@ ls -alh /image_with_kernel_*.tar.gz
 
 RAW_IMAGE=${RAW_IMAGE_ARTIFACT%.*}
 # download the ready-made raw image for the RPi
-if [ ! -f "${BUILD_RESULT_PATH}/${RAW_IMAGE_ARTIFACT}" ]; then
+if [ ! -f "${BUILD_RESULT_PATH}/inputs/${RAW_IMAGE_ARTIFACT}" ]; then
   if [ "$FETCH_MISSING_ARTIFACTS" == "true" ]; then
-    wget -q -O "${BUILD_RESULT_PATH}/${RAW_IMAGE_ARTIFACT}" "https://github.com/hypriot/image-builder-raw/releases/download/${RAW_IMAGE_VERSION}/${RAW_IMAGE}.zip"
+    wget -q -O "${BUILD_RESULT_PATH}/inputs/${RAW_IMAGE_ARTIFACT}" "https://github.com/hypriot/image-builder-raw/releases/download/${RAW_IMAGE_VERSION}/${RAW_IMAGE}.zip"
   else
     echo "Missing artifact ${RAW_IMAGE_ARTIFACT}"
     exit 255
@@ -124,10 +129,10 @@ fi
 
 if [ "$FETCH_MISSING_ARTIFACTS" == "true" ]; then
   # verify checksum of the ready-made raw image
-  echo "${RAW_IMAGE_CHECKSUM} ${BUILD_RESULT_PATH}/${RAW_IMAGE_ARTIFACT}" | sha256sum -c -
+  echo "${RAW_IMAGE_CHECKSUM} ${BUILD_RESULT_PATH}/inputs/${RAW_IMAGE_ARTIFACT}" | sha256sum -c -
 fi
 
-unzip -p "${BUILD_RESULT_PATH}/${RAW_IMAGE}" > "/${HYPRIOT_IMAGE_NAME}"
+unzip -p "${BUILD_RESULT_PATH}/inputs/${RAW_IMAGE}" > "/${HYPRIOT_IMAGE_NAME}"
 
 # create the image and add root base filesystem
 guestfish -a "/${HYPRIOT_IMAGE_NAME}"<<_EOF_
@@ -144,8 +149,9 @@ _EOF_
 umask 0000
 
 # compress image
-zip "${BUILD_RESULT_PATH}/${HYPRIOT_IMAGE_NAME}.zip" "${HYPRIOT_IMAGE_NAME}"
-cd ${BUILD_RESULT_PATH} && sha256sum "${HYPRIOT_IMAGE_NAME}.zip" > "${HYPRIOT_IMAGE_NAME}.zip.sha256" && cd -
+mkdir builds
+zip "${BUILD_RESULT_PATH}/builds/${HYPRIOT_IMAGE_NAME}.zip" "${HYPRIOT_IMAGE_NAME}"
+cd ${BUILD_RESULT_PATH}/builds && sha256sum "${HYPRIOT_IMAGE_NAME}.zip" > "${HYPRIOT_IMAGE_NAME}.zip.sha256" && cd -
 
 # # test sd-image that we have built
 # VERSION=${HYPRIOT_IMAGE_VERSION} rspec --format documentation --color ${BUILD_RESULT_PATH}/builder/test
