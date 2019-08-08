@@ -5,3 +5,5 @@
 *.tar.gz.sha256
 .vagrant/
 resources/
+.history/
+.vscode/

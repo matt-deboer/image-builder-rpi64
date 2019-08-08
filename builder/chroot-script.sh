@@ -115,6 +115,8 @@ echo "nameserver 8.8.8.8" > "${DEST}"
 # sed -i 's/deb http/deb [arch=arm64] http/g' /etc/apt/sources.list
 # sed -i 's/deb-src http/deb-src [arch=arm64] http/g' /etc/apt/sources.list
 
+export DEBIAN_FRONTEND=noninteractive
+
 # reload package sources
 apt-get update
 apt-get upgrade -y
@@ -145,15 +147,18 @@ apt-get upgrade -y
 printf "# Spawn a getty on Raspberry Pi serial line\nT0:23:respawn:/sbin/getty -L ttyAMA0 115200 vt100\n" >> /etc/inittab
 
 # boot/cmdline.txt
-echo "dwc_otg.lpm_enable=0 console=tty1 root=/dev/mmcblk0p2 rootfstype=ext4 cgroup_enable=cpuset cgroup_enable=memory swapaccount=1 elevator=deadline fsck.repair=yes rootwait console=ttyAMA0,115200 net.ifnames=0" > /boot/cmdline.txt
+echo "dwc_otg.lpm_enable=0 console=tty1 root=/dev/mmcblk0p2 rootfstype=ext4 \
+cgroup_enable=cpuset cgroup_enable=memory swapaccount=1 elevator=deadline \
+fsck.repair=yes rootwait console=ttyAMA0,115200 net.ifnames=0 \
+ds=nocloud;s=/var/lib/cloud/seed/nocloud/" > /boot/cmdline.txt
 # " net.ifnames=0" is neccessary for Debian Stretch: see https://www.freedesktop.org/wiki/Software/systemd/PredictableNetworkInterfaceNames/
 
-# create a default boot/config.txt file (details see http://elinux.org/RPiconfig)
-echo "
-# enable UART console on GPIO pins
-enable_uart=1
-hdmi_force_hotplug=1
-" > boot/config.txt
+# # create a default boot/config.txt file (details see http://elinux.org/RPiconfig)
+# echo "
+# # enable UART console on GPIO pins
+# enable_uart=1
+# hdmi_force_hotplug=1
+# " > boot/config.txt
 
 # echo "# camera settings, see http://elinux.org/RPiconfig#Camera
 # start_x=1
@@ -161,14 +166,15 @@ hdmi_force_hotplug=1
 # gpu_mem=128
 # " >> boot/config.txt
 
-echo "# setting for maximum memory, gpu_mem to minimum 16M, camera off
-start_x=0
-gpu_mem=16
-" >> boot/config.txt
+# echo "# setting for maximum memory, gpu_mem to minimum 16M, camera off
+# start_x=0
+# gpu_mem=16
+# " >> boot/config.txt
 
 # # /etc/modules
 # echo "snd_bcm2835
 # " >> /etc/modules
+
 
 # create /etc/fstab
 echo "
@@ -212,12 +218,24 @@ apt-get install -y \
 apt-get install -y \
   --no-install-recommends \
   cloud-init \
+  ssh-import-id \
   dirmngr \
   less
 
-mkdir -p /var/lib/cloud/seed/nocloud-net
-ln -s /boot/user-data /var/lib/cloud/seed/nocloud-net/user-data
-ln -s /boot/meta-data /var/lib/cloud/seed/nocloud-net/meta-data
+apt-get install -y \
+  ufw
+
+rm -rf /var/lib/cloud
+mkdir -p /var/lib/cloud/seed/nocloud
+ln -s /boot/user-data /var/lib/cloud/seed/nocloud/user-data
+ln -s /boot/meta-data /var/lib/cloud/seed/nocloud/meta-data
+mkdir -p /var/lib/cloud/scripts/per-once
+echo '
+#!/bin/bash
+
+echo "Regenerating machine id"
+dbus-uuidgen > /etc/machine-id
+' > /var/lib/cloud/scripts/per-once/regenerate-machine-id
 
 # enable Docker Engine experimental features
 mkdir -p /etc/docker/
@@ -254,6 +272,8 @@ apt-get install -y \
   docker-ce-cli="${DOCKER_ENGINE_VERSION}" \
   containerd.io="${CONTAINERD_IO_VERSION}"
 
+# apt-get install -y docker-ce
+
 # install Docker Machine directly from GitHub releases
 curl -sSL "https://github.com/docker/machine/releases/download/v${DOCKER_MACHINE_VERSION}/docker-machine-Linux-aarch64" \
   > /usr/local/bin/docker-machine
@@ -271,6 +291,13 @@ pip install docker-compose=="${DOCKER_COMPOSE_VERSION}"
 
 # install bash completion for Docker Compose
 curl -sSL "https://raw.githubusercontent.com/docker/compose/${DOCKER_COMPOSE_VERSION}/contrib/completion/bash/docker-compose" -o /etc/bash_completion.d/docker-compose
+
+# use legacy mode for iptables until all packages catch up
+# see https://wiki.debian.org/iptables
+update-alternatives --set iptables /usr/sbin/iptables-legacy
+update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+# update-alternatives --set arptables /usr/sbin/arptables-legacy
+# update-alternatives --set ebtables /usr/sbin/ebtables-legacy
 
 echo "Installing rpi-serial-console script"
 wget -q https://raw.githubusercontent.com/lurch/rpi-serial-console/master/rpi-serial-console -O usr/local/bin/rpi-serial-console

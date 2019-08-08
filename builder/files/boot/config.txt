@@ -1,0 +1,26 @@
+# For more options and information see
+# http://rpf.io/configtxt
+# Some settings may impact device functionality. See link above for details
+
+# enable UART console on GPIO pins
+enable_uart=1
+hdmi_force_hotplug=1
+
+start_x=0
+gpu_mem=16
+
+# Enable audio (loads snd_bcm2835)
+dtparam=audio=on
+
+[pi4]
+# Enable DRM VC4 V3D driver on top of the dispmanx display stack
+dtoverlay=vc4-fkms-v3d
+max_framebuffers=2
+
+[all]
+enable_uart=1
+dtoverlay=pi3-disable-bt
+armstub=armstub8-gic.bin
+enable_gic=1
+arm_64bit=1
+#total_mem=1024
